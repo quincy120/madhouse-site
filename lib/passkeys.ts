@@ -1,5 +1,7 @@
 import { PasskeyArgType, extractPasskeyData } from '@safe-global/protocol-kit'
 import { STORAGE_PASSKEY_LIST_KEY } from './constants'
+import { createWalletClient, http } from 'viem'
+import { sepolia } from 'viem/chains'
 
 /**
  * Create a passkey using WebAuthn API.
@@ -77,4 +79,19 @@ export function getPasskeyFromRawId(passkeyRawId: string): PasskeyArgType {
   const passkey = passkeys.find((passkey) => passkey.rawId === passkeyRawId)!
 
   return passkey
+}
+
+export function getPasskeyProvider(){
+
+  return createWalletClient({
+    chain: sepolia,
+    transport: http('https://rpc.ankr.com/eth_sepolia')
+  })
+
+}
+
+export function getPasskeySigner(passkey: any){
+
+  return passkey
+
 }

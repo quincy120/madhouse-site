@@ -14,8 +14,23 @@ import { Safe4337Pack } from '@safe-global/relay-kit'
 import Image from 'next/image'
 import { useCallback, useEffect, useState } from 'react'
 import { BUNDLER_URL, CHAIN_NAME, RPC_URL } from '../lib/constants'
-import { mintNFT } from '../lib/mintNFT'
 import SafeLogo from '../public/safeLogo.png'
+
+import { extractPasskeyData } from '@safe-global/protocol-kit'
+import "dotenv/config"
+import { Hex, createPublicClient, getContract, http, encodePacked } from "viem"
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
+import { sepolia } from "viem/chains"
+import {  createPimlicoClient } from "permissionless/clients/pimlico"
+import {  createBundlerClient, entryPoint07Address, createPaymasterClient } from "viem/account-abstraction"
+import { createSmartAccountClient } from "permissionless"
+import { erc7579Actions } from 'permissionless/actions/erc7579'
+import {
+  getSocialRecoveryValidator,
+  RHINESTONE_ATTESTER_ADDRESS,
+  MOCK_ATTESTER_ADDRESS,
+} from '@rhinestone/module-sdk'
+import { toSafeSmartAccount } from "permissionless/accounts"
 
 type props = {
   passkey: PasskeyArgType
@@ -27,21 +42,54 @@ function SafeAccountDetails({ passkey }: props) {
   const [isSafeDeployed, setIsSafeDeployed] = useState<boolean>()
   const [userOp, setUserOp] = useState<string>()
 
+  const RP_NAME = 'Safe Smart Account'
+const USER_DISPLAY_NAME = 'User display name'
+const USER_NAME = 'User name'
+
+const apiKey = 'pim_R8HnYSXY7JhDE1sb7CxWW2'
+if (!apiKey) throw new Error("Missing PIMLICO_API_KEY")
+
+ const publicClient = createPublicClient({
+    chain: sepolia,
+    transport: http("https://rpc.ankr.com/eth_sepolia"),
+  })
+  const owner = privateKeyToAccount(generatePrivateKey())
+
+  const pimlicoUrl = `https://api.pimlico.io/v2/sepolia/rpc?apikey=${apiKey}`
+  
+  const pimlicoClient = createPimlicoClient({
+    transport: http(pimlicoUrl),
+    entryPoint: {
+      address: entryPoint07Address,
+      version: "0.7",
+    }
+  })
+
   const showSafeInfo = useCallback(async () => {
     setIsLoading(true)
 
-    const safe4337Pack = await Safe4337Pack.init({
-      provider: RPC_URL,
-      signer: passkey,
-      bundlerUrl: BUNDLER_URL,
-      options: {
-        owners: [],
-        threshold: 1
-      }
-    })
+    const safe4337Pack = toSafeSmartAccount({
+      client: publicClient,
+      owners: [owner],
+      version: '1.4.1',
+      entryPoint: {
+        address: entryPoint07Address,
+        version: '0.7',
+      },
+      safe4337ModuleAddress: '0x7579EE8307284F293B1927136486880611F20002', 
+      erc7579LaunchpadAddress: '0x7579011aB74c46090561ea277Ba79D510c6C00ff',
+      attesters: [
+        RHINESTONE_ATTESTER_ADDRESS, // Rhinestone Attester
+        MOCK_ATTESTER_ADDRESS, // Mock Attester - do not use in production
+      ],
+      attestersThreshold: 1,
+      })
+        
 
-    const safeAddress = await safe4337Pack.protocolKit.getAddress()
-    const isSafeDeployed = await safe4337Pack.protocolKit.isSafeDeployed()
+
+
+    const safeAddress = '0x7579EE8307284F293B1927136486880611F20002'
+    const isSafeDeployed = true
 
     setSafeAddress(safeAddress)
     setIsSafeDeployed(isSafeDeployed)
@@ -52,15 +100,6 @@ function SafeAccountDetails({ passkey }: props) {
     showSafeInfo()
   }, [showSafeInfo])
 
-  async function handleMintNFT() {
-    setIsLoading(true)
-
-    const userOp = await mintNFT(passkey, safeAddress!)
-
-    setIsLoading(false)
-    setIsSafeDeployed(true)
-    setUserOp(userOp)
-  }
 
   const safeLink = `https://app.safe.global/home?safe=sep:${safeAddress}`
   const jiffscanLink = `https://jiffyscan.xyz/userOpHash/${userOp}?network=${CHAIN_NAME}`
@@ -105,15 +144,6 @@ function SafeAccountDetails({ passkey }: props) {
             </Typography>
 
             {!isSafeDeployed && <PendingDeploymentLabel />}
-
-            <Button
-              onClick={handleMintNFT}
-              startIcon={<PhotoIcon />}
-              variant="outlined"
-              sx={{ margin: '24px' }}
-            >
-              Mint NFT
-            </Button>
 
             {userOp && (
               <Typography textAlign={'center'}>
