@@ -41,7 +41,11 @@
     "@stripe/react-stripe-js": "^3.1.1",
     "@stripe/stripe-js": "1.46.0",
     "@stripe/crypto": "^0.0.4",
-    "@nexusmutual/sdk": "0.6.3"
+    "@nexusmutual/sdk": "0.6.3",
+    "@github/webauthn-json": "^2.1.1",
+    "@noble/curves": "^1.6.0",
+    "crypto": "^1.0.1",
+    "jest": "^29.7.0"
   },
   "devDependencies": {
     "@types/node": "^20",
