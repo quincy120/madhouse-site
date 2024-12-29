@@ -151,3 +151,42 @@ export const base64FromUint8Array = (
   return result;
 };
 
+/**
+ * Decodes an ECDSA public key for the web platform and extracts the x and y coordinates.
+ *
+ * This function uses the Web Crypto API to import a public key in SPKI format and then
+ * exports it to a JWK format to retrieve the x and y coordinates. The coordinates are
+ * returned as hexadecimal strings prefixed with '0x'.
+ *
+ * @param {ArrayBuffer} publicKey - The public key in SPKI format to decode.
+ * @returns {Promise<PasskeyCoordinates>} A promise that resolves to an object containing
+ * the x and y coordinates of the public key.
+ * @throws {Error} Throws an error if the key coordinates cannot be extracted.
+ */
+export async function decodePublicKeyForWeb(publicKey: ArrayBuffer): Promise<PasskeyCoordinates> {
+  const algorithm = {
+    name: 'ECDSA',
+    namedCurve: 'P-256',
+    hash: { name: 'SHA-256' }
+  }
+
+  const key = await crypto.subtle.importKey('spki', publicKey, algorithm, true, ['verify'])
+
+  const { x, y } = await crypto.subtle.exportKey('jwk', key)
+
+  const isValidCoordinates = !!x && !!y
+
+  if (!isValidCoordinates) {
+    throw new Error('Failed to generate passkey Coordinates. crypto.subtle.exportKey() failed')
+  }
+
+  return {
+    x: '0x' + Buffer.from(x, 'base64').toString('hex'),
+    y: '0x' + Buffer.from(y, 'base64').toString('hex')
+  }
+}
+
+export type PasskeyCoordinates = {
+  x: string
+  y: string
+}
