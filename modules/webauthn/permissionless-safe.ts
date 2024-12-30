@@ -1,3 +1,5 @@
+// Reference: https://github.com/rhinestonewtf/module-sdk-tutorials/blob/main/src/webauthn/permissionless-safe.ts
+
 import {
   getWebAuthnValidator,
   getWebauthnValidatorSignature,
@@ -31,6 +33,9 @@ import {
   PublicKeyCredentialWithAttestationJSON,
 } from "@github/webauthn-json";
 import crypto from "crypto";
+import { PasskeyArgType, extractPasskeyData } from '@safe-global/protocol-kit'
+import { saveRegistration } from "./demo/state";
+
 
 function clean(str: string) {
   return str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -47,6 +52,12 @@ export default async function main({
   paymasterUrl: string;
   chain: any;
 }) {
+
+////////////////////////////////////////////
+/////// Create Wallet/////////////////////////
+/////////////////////////////////////////////
+
+
   const publicClient = createPublicClient({
     transport: http(rpcUrl),
     chain: chain,
@@ -63,7 +74,8 @@ export default async function main({
   const paymasterClient = createPaymasterClient({
     transport: http(paymasterUrl),
   });
-
+  
+  //if already has public key do getRegistration("emailaddress")
   const owner = privateKeyToAccount(generatePrivateKey());
 
   const safeAccount = await toSafeSmartAccount({
@@ -95,6 +107,11 @@ export default async function main({
     },
   }).extend(erc7579Actions());
 
+////////////////////////////////////////////////////////////////////////////////
+///////////////////////Create new Passkey /////////////////////////////////////
+/////////////////////////////////////////////////////////////////
+
+
   const saltUUID = crypto.createHash("sha256").update("salt").digest("hex");
 
   const _credential = await create({
@@ -122,11 +139,27 @@ export default async function main({
     },
   });
 
+
+  //////////////////////////////////////////
+  /////Save to local storage and to database for persistant storage//////////////////
+  /////////////////////////////////////////////////////////////////////
+  //https://github.com/safe-global/safe-core-sdk/blob/main/packages/protocol-kit/src/utils/passkeys/extractPasskeyData.ts
+
+  saveRegistration(_credential)
+  const passkey = await extractPasskeyData(_credential)
+
+////////////////////////// Get Validator /////////////////
+// We can also retrieve this data from db if we have a returning user by their email address
+// i filled in the below with what i would think this should be filled in with but it needs to be tested
   const webauthn = getWebAuthnValidator({
-    pubKeyX: 1,
-    pubKeyY: 2,
-    authenticatorId: "hello",
+    pubKeyX: passkey.coordinates.x,
+    pubKeyY: passkey.coordinates.y,
+    authenticatorId: _credential.id,
   });
+
+/////////////////////////////////////////////////
+/////////Install Module and with passkey/////////////////////////////
+/////////////////////////////////////////////////////////////////
 
   const opHash = await smartAccountClient.installModule({
     type: webauthn.type,
@@ -156,6 +189,9 @@ export default async function main({
     },
   ];
 
+
+  //Batch Multiple Transactions: https://docs.pimlico.io/permissionless/how-to/parallel-transactions
+  //
   const userOperation = await smartAccountClient.prepareUserOperation({
     account: safeAccount,
     calls: calls,
